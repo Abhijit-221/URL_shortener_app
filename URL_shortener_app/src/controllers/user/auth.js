@@ -1,3 +1,5 @@
+const User = require("../../models/userModel");
+
 const GOOGLE_OAUTH_URL = process.env.GOOGLE_OAUTH_URL;
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
@@ -45,40 +47,53 @@ module.exports = {
      * @auther Abhijit swain
      * @description redirect and usercreate.
      */
-    redirect:async(req,res)=>{
-        try{
+    redirect: async (req, res) => {
+        try {
             console.log(req.query);
             const { code } = req.query;
             const data = {
                 code,
-            
+
                 client_id: GOOGLE_CLIENT_ID,
-            
+
                 client_secret: GOOGLE_CLIENT_SECRET,
-            
+
                 redirect_uri: GOOGLE_CALLBACK_URL,
-            
+
                 grant_type: "authorization_code",
-              };
-            
-              console.log(data);
-              
+            };
+
+            console.log(data);
+
             const response = await fetch(`${GOOGLE_ACCESS_TOKEN_URL}`, {
                 method: "POST",
                 body: JSON.stringify(data),
             });
-            console.log('response:',response);
+            console.log('response:', response);
             const access_token_data = await response.json();
             const { id_token } = access_token_data;
 
-            console.log("id_token:",id_token);
+            console.log("id_token:", id_token);
 
             // verify and extract the information in the id token
 
             const token_info_response = await fetch(
                 `${process.env.GOOGLE_TOKEN_INFO_URL}?id_token=${id_token}`
             );
-            return res.status(token_info_response.status).json(await token_info_response.json());
+            const token_info_data = await token_info_response.json();
+            const { email, name } = token_info_data;
+            console.log('email:', email, name);
+            let user = await User.findOne({ email }).select("-password");
+            if (!user) {
+                user = await User.create({ email, name });
+            }
+            const token = user.generateToken();
+            return res.status(200).json({ 
+                status:200,
+                data:{user,token},
+                error:{},
+                message:"Login successfully."
+             });
         }
         catch (error) {
             return res.status(500).json({
